@@ -1,0 +1,92 @@
+package dataStructureProblems;
+
+import java.util.*;
+
+public class CachePriorityExpiry {
+    class Node {
+        String key, value;
+        int priority, expiry;
+        Node(String key, String value, int priority, int expiry) {
+            this.key = key;
+            this.value = value;
+            this.priority = priority;
+            this.expiry = expiry;
+        }
+    }
+
+    Map<String, Node> map;
+    Queue<Node> pqExpiry;
+    Queue<Node> pqPriority;
+
+    CachePriorityExpiry() {
+        map = new HashMap<>();
+        pqExpiry = new PriorityQueue<>((a, b) -> a.expiry < b.expiry ? -1 : 1);
+        pqPriority = new PriorityQueue<>((a, b) -> a.priority < b.priority ? -1 : 1);
+    }
+
+    public String get(String key) {
+        if(!map.containsKey(key)) {
+            return null;
+        }
+
+        Node node = map.get(key);
+
+        pqExpiry.remove(node);
+        pqExpiry.add(node);
+
+        pqPriority.remove(node);
+        pqPriority.add(node);
+        return node.value;
+    }
+
+    public void set(String key, String value, int priority, int expiry) {
+        Node node = new Node(key, value, priority, expiry);
+        map.put(key, node);
+        pqExpiry.add(node);
+        pqPriority.add(node);
+    }
+
+    public String evictItem(int curTime) {
+        if(map.isEmpty()) {
+            return null;
+        }
+
+        int minExpiry = pqExpiry.peek().expiry;
+        if(minExpiry < curTime) {
+            Node node = pqExpiry.poll();
+            pqPriority.remove(node);
+            map.remove(node.key);
+            return node.value;
+        }
+
+        Node node = pqPriority.poll();
+        pqExpiry.remove(node);
+        map.remove(node.key);
+        return node.value;
+    }
+
+    public static void main(String[] args) {
+        CachePriorityExpiry cache = new CachePriorityExpiry();
+        cache.set("A", "1", 2, 100);
+        cache.set("B", "2", 3, 300);
+        cache.set("C", "3", 2, 100);
+        cache.set("D", "4", 2, 100);
+        cache.set("E", "5", 1, 400);
+        System.out.println(cache.get("D"));
+        System.out.println(cache.get("C"));
+        System.out.println(cache.evictItem(110));
+        System.out.println(cache.evictItem(110));
+        System.out.println(cache.evictItem(10));
+        System.out.println(cache.evictItem(10));
+        cache.set("F", "6", 2, 100);
+        cache.set("G", "7", 2, 100);
+        cache.set("H", "8", 2, 100);
+        cache.set("I", "9", 2, 100);
+        System.out.println(cache.evictItem(10));
+        System.out.println(cache.evictItem(10));
+        System.out.println(cache.evictItem(10));
+        System.out.println(cache.evictItem(10));
+        System.out.println(cache.evictItem(500));
+        System.out.println(cache.evictItem(10));
+    }
+}
