@@ -1,90 +1,296 @@
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class CachePriorityExpiry {
-    class Node {
-        String key, value;
-        int priority, expiry;
-        Node(String key, String value, int priority, int expiry) {
+class Node {
+    String key, value;
+    int priority, expiry;
+    Node(String key, String value, int priority, int expiry) {
+        this.key = key;
+        this.value = value;
+        this.priority = priority;
+        this.expiry = expiry;
+    }
+
+    public String toString() {
+        return "{" + key + " : " + value + "}";
+    }
+}
+
+class CustomPriorityQueue {
+
+    private class Item {
+        String key;
+        Item prev, next;
+
+        Item(String key) {
             this.key = key;
-            this.value = value;
-            this.priority = priority;
-            this.expiry = expiry;
+            prev = next = null;
+        }
+    }
+    private class BinTree {
+        BinTree[] children;
+        Item head, tail;
+        BinTree() {
+            children = new BinTree[2];
+            head = tail = null;
         }
     }
 
-    Map<String, Node> map;
-    Queue<Node> pqExpiry;
-    Queue<Node> pqPriority;
-
-    CachePriorityExpiry() {
+    BinTree root;
+    Map<String, Item> map;
+    CustomPriorityQueue() {
+        root = new BinTree();
         map = new HashMap<>();
-        pqExpiry = new PriorityQueue<>((a, b) -> a.expiry < b.expiry ? -1 : 1);
-        pqPriority = new PriorityQueue<>((a, b) -> a.priority < b.priority ? -1 : 1);
+    }
+
+    private void addInLinkedList(Item node, BinTree temp) {
+        if(temp.head == null) {
+            temp.head = temp.tail = node;
+        } else {
+            node.prev = temp.tail;
+            temp.tail.next = node;
+            temp.tail = node;
+        }
+    }
+
+    private void removeInLinkedList(Item node, BinTree temp) {
+        if(node == temp.head) {
+            if(temp.head == temp.tail) {
+                temp.head = temp.tail = null;
+            } else {
+                temp.head.next.prev = null;
+                temp.head = temp.head.next;
+            }
+        } else {
+            if(node == temp.tail) {
+                temp.tail.prev.next = null;
+                temp.tail = temp.tail.prev;
+            } else {
+                node.prev.next = node.next;
+                node.next.prev = node.prev;
+            }
+        }
+        node.prev = node.next = null;
+    }
+
+    private BinTree getLastBinTreeNode(int num) {
+        int mask = (1 << 31);
+        BinTree temp = root;
+        for(int i = 0; i < 32; i++) {
+            int inx = (num & mask) == 0 ? 0 : 1;
+            if(temp.children[inx] == null) {
+                temp.children[inx] = new BinTree();
+            }
+            temp = temp.children[inx];
+            num = (num << 1);
+        }
+        return temp;
+    }
+
+    public void add(int num, String key) {
+        Item item = new Item(key);
+        map.put(key, item);
+        BinTree last = getLastBinTreeNode(num);
+        addInLinkedList(item, last);
+    }
+
+    public String remove(int num, String key) {
+        Item item = map.remove(key);
+        BinTree last = getLastBinTreeNode(num);
+        removeInLinkedList(item, last);
+        if(last.head == null) {
+            deleteBranch(num);
+        }
+        return item.key;
+    }
+
+    private void deleteBranch(int num) {
+        deleteBranchUtil(num, (1 << 31), 0, root);
+    }
+
+    private boolean deleteBranchUtil(int num, int mask, int level, BinTree node) {
+        if(level == 32) {
+            return true;
+        }
+
+        int inx = (num & mask) == 0 ? 0 : 1;
+        if(deleteBranchUtil((num << 1), mask, level + 1, node.children[inx])) {
+            node.children[inx] = null;
+            return node.children[(inx ^ 1)] == null;
+        }
+        return false;
+    }
+
+    public String getMin() {
+        if(root == null) {
+            return null;
+        }
+        BinTree temp = root;
+        for(int i = 0; i < 32; i++) {
+            if(temp.children[0] != null) {
+                temp = temp.children[0];
+            } else {
+                temp = temp.children[1];
+            }
+        }
+        return temp.head.key;
+    }
+
+    public String update(int num, String key) {
+        int mask = (1 << 31);
+        int val = num;
+        BinTree temp = root;
+        Item item = map.get(key);
+
+        for(int i = 0; i < 32; i++) {
+            int inx = (val & mask) == 0 ? 0 : 1;
+            temp = temp.children[inx];
+            val = (val << 1);
+        }
+        removeInLinkedList(item, temp);
+        addInLinkedList(item, temp);
+        return item.key;
+    }
+
+    public void print(Map<String, Node> items_map) {
+        Map<Integer, List<String>> map = new HashMap<>();
+        printUtil(root, 0, 0, map, items_map);
+        System.out.println(map);
+    }
+
+    private void printUtil(BinTree node, int level, int val, Map<Integer, List<String>> map, Map<String, Node> items_map) {
+        if(node == null) {
+            return;
+        }
+
+        if(level == 32) {
+            List<String> list = new ArrayList<>();
+            Item temp = node.head;
+            while(temp != null) {
+                list.add("{" + temp.key + " : " + items_map.get(temp.key).value + "}");
+                temp = temp.next;
+            }
+            map.put(val, list);
+            return;
+        }
+
+        printUtil(node.children[0], level + 1, val * 2, map, items_map);
+        printUtil(node.children[1], level + 1, val * 2 + 1, map, items_map);
+    }
+}
+
+public class CachePriorityExpiryOptimized {
+    Map<String, Node> map;
+    CustomPriorityQueue pqExpiry;
+    CustomPriorityQueue pqPriority;
+    CachePriorityExpiryOptimized() {
+        map = new HashMap<>();
+        pqExpiry = new CustomPriorityQueue();
+        pqPriority = new CustomPriorityQueue();
     }
 
     public String get(String key) {
-        if(!map.containsKey(key)) {
+        if(map.isEmpty() || !map.containsKey(key)) {
             return null;
         }
 
         Node node = map.get(key);
-
-        pqExpiry.remove(node);
-        pqExpiry.add(node);
-
-        pqPriority.remove(node);
-        pqPriority.add(node);
+        pqExpiry.update(node.expiry, key);
+        pqPriority.update(node.priority, key);
         return node.value;
     }
 
     public void set(String key, String value, int priority, int expiry) {
         Node node = new Node(key, value, priority, expiry);
         map.put(key, node);
-        pqExpiry.add(node);
-        pqPriority.add(node);
+        pqExpiry.add(expiry, key);
+        pqPriority.add(priority, key);
     }
 
     public String evictItem(int curTime) {
-        if(map.isEmpty()) {
-            return null;
-        }
+        if(map.isEmpty()) return null;
+        String minExpiryKey = pqExpiry.getMin();
+        int minExpiry = map.get(minExpiryKey).expiry;
 
-        int minExpiry = pqExpiry.peek().expiry;
         if(minExpiry < curTime) {
-            Node node = pqExpiry.poll();
-            pqPriority.remove(node);
-            map.remove(node.key);
-            return node.value;
+            pqExpiry.remove(minExpiry, minExpiryKey);
+            pqPriority.remove(map.get(minExpiryKey).priority, minExpiryKey);
+            return map.remove(minExpiryKey).value;
+        } else {
+            String minPriorityKey = pqPriority.getMin();
+            int minPriority = map.get(minPriorityKey).priority;
+            pqPriority.remove(minPriority, minPriorityKey);
+            pqExpiry.remove(map.get(minPriorityKey).expiry, minPriorityKey);
+            return map.remove(minPriorityKey).value;
         }
+    }
 
-        Node node = pqPriority.poll();
-        pqExpiry.remove(node);
-        map.remove(node.key);
-        return node.value;
+    public void print() {
+        pqExpiry.print(map);
+        pqPriority.print(map);
+        System.out.println(map);
+
+        System.out.println("Min Expiry: " + pqExpiry.getMin());
+        System.out.println("Min Priority: " + pqPriority.getMin());
+        System.out.println();
     }
 
     public static void main(String[] args) {
-        CachePriorityExpiry cache = new CachePriorityExpiry();
+        CachePriorityExpiryOptimized cache = new CachePriorityExpiryOptimized();
         cache.set("A", "1", 2, 100);
-        cache.set("B", "2", 3, 300);
-        cache.set("C", "3", 2, 100);
-        cache.set("D", "4", 2, 100);
-        cache.set("E", "5", 1, 400);
-        System.out.println(cache.get("D"));
+        cache.set("B", "2", 3, 100);
+        cache.set("C", "3", 1, 100);
+        cache.set("D", "4", 6, 200);
+        cache.set("E", "5", 2, 200);
+        cache.set("F", "6", 2, 200);
+        cache.set("G", "7", 1, 300);
+        cache.set("H", "8", 1, 300);
+        cache.set("I", "9", 1, 300);
+        cache.set("J", "10", 2, 200);
+        cache.set("K", "11", 2, 100);
+
+        System.out.println("Check Point - 1");
+        cache.print();
+
         System.out.println(cache.get("C"));
-        System.out.println(cache.evictItem(110));
-        System.out.println(cache.evictItem(110));
-        System.out.println(cache.evictItem(10));
-        System.out.println(cache.evictItem(10));
-        cache.set("F", "6", 2, 100);
-        cache.set("G", "7", 2, 100);
-        cache.set("H", "8", 2, 100);
-        cache.set("I", "9", 2, 100);
-        System.out.println(cache.evictItem(10));
-        System.out.println(cache.evictItem(10));
-        System.out.println(cache.evictItem(10));
-        System.out.println(cache.evictItem(10));
-        System.out.println(cache.evictItem(500));
-        System.out.println(cache.evictItem(10));
+        System.out.println("After using key: C");
+        System.out.println("Check Point - 2");
+        cache.print();
+
+        System.out.println("Check Point - 3");
+        cache.evictItem(500);
+        cache.print();
+
+        System.out.println("Check Point - 4");
+        cache.evictItem(500);
+        cache.print();
+
+        System.out.println("Check Point - 5");
+        cache.evictItem(500);
+        cache.print();
+
+        System.out.println("Check Point - 6");
+        cache.evictItem(500);
+        cache.print();
+
+        System.out.println("Check Point - 7");
+        cache.evictItem(60);
+        System.out.println("Check Point - 7.1");
+        cache.print();
+
+        System.out.println("Check Point - 8");
+        cache.set("L", "12", 1, 150);
+        cache.set("M", "13", 2, 250);
+        cache.set("N", "14", 5, 250);
+        cache.set("O", "15", 6, 300);
+
+        System.out.println("Check Point - 9");
+        cache.print();
+        cache.get("M");
+        cache.get("O");
+        System.out.println("Check Point - 10");
+        cache.print();
     }
 }
