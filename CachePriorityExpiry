@@ -1,5 +1,3 @@
-package dataStructureProblems;
-
 import java.util.*;
 
 public class CachePriorityExpiry {
