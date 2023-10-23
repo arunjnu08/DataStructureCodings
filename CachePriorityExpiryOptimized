@@ -1,3 +1,58 @@
+/*
+The problem statement requires us to design a cache with the following methods:
+
+    get(String key)
+    set(String key, String value, int priority, int expiry)
+    evictItem(int currentTime)
+
+The rules by which the cache operates is are follows:
+
+    1. If an expired item is available. Remove it. If multiple items have the same expiry, removing any one suffices.
+    2. If condition #1 can’t be satisfied, remove an item with the least priority.
+    3. If more than one item satisfies condition #2, remove the least recently used one.
+    4. Multiple items can have the same priority and expiry.
+
+Untold rules:
+All of those operations should be O(1) time and space complexity.
+*********************************************************************************************************************
+
+Approach: 
+Every cache entry has 4 fields - key, value, priority and expiry.
+We are storing entry in Node calss, Idea is to store these entry in below data structure - 
+
+1. HashMap<String, Node> : It will store Nodes based on key.
+2. A Custom data structure to store Node on the basis of expiry and priority (In two different instances of DS).
+    (a) CustomDataStructure : {
+        expiry1 -> List of keys, whose associated Nodes have expiries are expiry1,
+        expiry2 -> List of keys,......
+        .......
+        .......
+    }
+
+    (b) CustomDataStructure : {
+        priority1 -> List of keys, whose associated Nodes have priorities are priority1,
+        priority2 -> List of keys,......
+        .......
+        .......
+    }
+We'll design CustomDataStructure in such a way that all required operations will cost O(1) time complexity.
+As per the problem we'll have to find minimum expiry and priority. It looks like LinkedHashMap could be used as our custom DS, but it
+will cost O(log n) for each updation. So instead of using LinkedHashMap, we can use Trie to store our key (in this context key means expiry
+or priority). Since these are 32 bit integer, so we can store them in a Trie of 32 height. Its node will look like this -
+private class BinTree {
+    BinTree[] children;
+    Item head, tail;
+    BinTree() {
+        children = new BinTree[2];
+        head = tail = null;
+    }
+}
+
+Getting minimum expiry or priority will cost O(32) ==> O(1) time.Even adding and deleting new entry will cost O(1) time.
+
+By using above Data Structure we can achieve O(1) time complexity for all given cache operation by considering all given rules.
+*/
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
